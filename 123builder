@@ -1,0 +1,71 @@
+#!/bin/bash
+
+# ======================================================================================================================
+# Constants Declaration
+# ======================================================================================================================
+PROJECTS_FOLDER="${HOME}/projetos/"
+
+#Projects
+CHEMICAL_X="Chemical-X-SDKJS";
+ALKHEMA_SDK="Alkhema-SDK";
+ALKHEMA_TAM="Alkhema-TAM";
+ALKHEMA_GOL="Alkhema-GOL";
+ABSOLEM_TAM="Absolem-TAM";
+JOCASTA_TAM="jocasta-tam";
+
+ALKHEMA_TAM_DEPENDENCIES=($CHEMICAL_X $ALKHEMA_SDK $ALKHEMA_TAM)
+ALKHEMA_GOL_DEPENDENCIES=($CHEMICAL_X $ALKHEMA_SDK $ALKHEMA_GOL)
+ABSOLEM_TAM_DEPENDENCIES=($CHEMICAL_X $ALKHEMA_SDK $ALKHEMA_TAM $ABSOLEM_TAM)
+JOCASTA_TAM_DEPENDENCIES=($CHEMICAL_X $ALKHEMA_SDK $ALKHEMA_TAM $JOCASTA_TAM)
+
+
+# ======================================================================================================================
+# Functions Declaration
+# ======================================================================================================================
+
+function getBuildHash(){
+    $(tar -cf - node_modules dist yarn.lock | md5sum | awk '{print $1}')
+}
+
+# ======================================================================================================================
+# Choices dialog
+# ======================================================================================================================
+cmd=(dialog --separate-output --checklist "Build-123 - Select projects to build:" 11 50 6)
+
+options=(
+    $ALKHEMA_TAM "" off
+    $ALKHEMA_GOL "" off
+    $ABSOLEM_TAM "" off
+    $JOCASTA_TAM "" off
+)
+
+choices=$("${cmd[@]}" "${options[@]}" 2>&1 >/dev/tty)
+clear
+
+
+echo $choices
+
+
+# for choice in $choices
+# do
+#     case $choice in
+#         $CHEMICAL_X)
+#             echo $choice
+#             ;;
+#         $ALKHEMA_SDK)
+#             echo $choice
+#             ;;
+#         $ALKHEMA_TAM)
+#             echo $choice
+#             ;;
+#         $ALKHEMA_GOL)
+#             echo $choice
+#             ;;
+#         $ABSOLEM_TAM)
+#             echo $choice
+#             ;;
+#         $JOCASTA_TAM)
+#             echo $choice
+#             ;;
+#     esac
+# done

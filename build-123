@@ -1,0 +1,277 @@
+#!/bin/bash
+
+# Declaração de constantes
+# ======================================================================================================================
+PROJECTS_FOLDER="${HOME}/projetos/"
+CHEMICAL_X_PATH="Chemical-X-SDKJS";
+ALKHEMA_SDK_PATH="Alkhema-SDK";
+ALKHEMA_TAM_PATH="Alkhema-TAM";
+ALKHEMA_GOL_PATH="Alkhema-GOL";
+ABSOLEM_TAM_PATH="Absolem-TAM";
+JOCASTA_TAM_PATH="jocasta-tam";
+
+ENDLINE='\n==================================================\n\033[0m'
+END='\n\033[0m'
+WHITE='\033[0;37m'
+RED='\033[1;31m'
+GREEN='\033[0;36m'
+BLUE='\033[0;34m'
+YELLOW='\033[0;33m'
+SECONDS=0
+PROJECTS=("$ALKHEMA_TAM_PATH" "$ALKHEMA_GOL_PATH" "$ABSOLEM_TAM_PATH" "$JOCASTA_TAM_PATH")
+
+# Funções auxiliares
+# ======================================================================================================================
+
+function horizontalLine(){
+	printf '%.s─' $(seq 1 $(tput cols))
+}
+
+# Verifica a saída do último comando
+function checkResult()
+{
+	if [ $? -eq 0 ]; then
+    	return 0
+	else
+		# Força saída em caso de falha (passado via parâmetro)
+		if [ $1 ]; then
+			exit 1
+		fi
+
+		return 1
+	fi
+}
+
+#Verifica se um item existe no array: inArray "$meuitem" "${meuarray[@]}"
+function inArray()
+{
+	local needle="$1"
+	shift
+	local haystack=("$@")
+
+	for i in "${haystack[@]}"; do
+	    if [ "$i" == "$needle" ] ; then
+	        return 0
+	    fi
+	done
+
+	return 1
+}
+
+# Retorna a branch atual
+getGitBranch() {
+	git branch 2> /dev/null | sed -e '/^[^*]/d' -e 's/* \(.*\)/ \1/' -e 's/^[[:space:]]*//'
+}
+
+# Printa a mensagem de Help da a plicação
+helpFunction()
+{
+   printf "${ENDLINE}====== ${GREEN}Build Alkhema-SDK dependent projects${WHITE} ======${ENDLINE}${END}"
+
+	if [ ! -z "$1" ]
+	then
+		printf "$1 ${END}${END}"
+	fi
+
+   printf "Usage: $0 ${YELLOW}-p${WHITE} ${BLUE}\"project-name\"${WHITE} ${YELLOW}-b${WHITE} ${BLUE}\"branch-name\"${WHITE}${END}"
+   echo -e " ${YELLOW}-b${WHITE} Base branch name to build. (Will use the main branch if the informed branch does'nt exists)"
+   echo -e " ${YELLOW}-p${WHITE} Name of the project to build [${PROJECTS[@]}]"
+   exit 1
+}
+
+# Extrai os parâmetros de entrada do script
+while getopts "b:p:" opt
+
+do
+   case "$opt" in
+		b ) BranchName="$OPTARG" ;;
+		p ) ProjectName="$OPTARG" ;;
+		h ) helpFunction ;;
+		? ) helpFunction ;;
+   esac
+done
+
+# Exibe a mensagem de help caso não sejam passados os parâmetros
+if [ -z "$ProjectName" ] || [ -z "$BranchName" ]
+then
+   helpFunction
+fi
+
+# Verifica se o projectname é válido
+if ! inArray "$ProjectName" "${PROJECTS[@]}"; then
+	helpFunction "${YELLOW}Invalid ProjectName Parameter: ${RED}${ProjectName}${WHITE}"
+fi
+
+# Funções de build
+# =================================================================================================
+
+printf "Starting build: ${BLUE}$ProjectName${WHITE} on branch ${BLUE}$BranchName${WHITE}${END}"
+
+# Muda para a branch solicitada via parâmetro ou para a main
+function changeBranch() {
+	printf "${YELLOW}Changing to branch ${BranchName}${WHITE}${END}"
+
+	if [ $(getGitBranch) == "${BranchName}" ]; then
+		printf "Already on branch ${GREEN}${BranchName}${WHITE}${END}";
+	else
+		printf "${YELLOW}Stashing before checkout${WHITE}${END}";
+		git stash
+
+		printf "Checkout ${GREEN}${BranchName}${WHITE}${END}";
+		git checkout ${BranchName}
+
+		# Checkout na main caso checkout falhe
+		if [ ! $(getGitBranch) == "${BranchName}" ]; then
+			printf "Failed to checkout ${RED}${BranchName}${WHITE}. Switching to ${YELLOW}MAIN${END}";
+			git checkout main
+
+			# Verifica se está de fato na main. Finaliza o script se não estiver
+			if [ ! $(getGitBranch) == "main" ]; then
+				printf "Fail checkout to ${RED}${main}${WHITE}. Terminating${END}";
+				exit 1
+			fi
+		fi
+	fi
+}
+
+# Apaga a pasta node_modules e dist
+function deleteResources() {
+	yarn unlink
+	rm -rf node_modules
+	rm -rf dist
+	rm -rf yarn.lock
+}
+
+# Roda os comandos do yarn
+function installResources() {
+	yarn install --force
+	yarn upgrade
+	yarn build
+	checkResult 1
+	yarn link
+}
+
+# Builda o chemical-x
+function buildChemicalX() {
+	printf "Building ${GREEN}${CHEMICAL_X_PATH}${WHITE}${END}"
+	horizontalLine
+
+	cd "$PROJECTS_FOLDER$CHEMICAL_X_PATH"
+	checkResult 1
+	changeBranch
+	deleteResources
+	installResources
+	git checkout yarn.lock
+}
+
+# Builda o SDK
+function buildAlkhemaSdk() {
+	printf "Building ${GREEN}${ALKHEMA_SDK_PATH}${WHITE}${END}"
+	horizontalLine
+
+	cd "$PROJECTS_FOLDER$ALKHEMA_SDK_PATH"
+	checkResult 1
+	changeBranch
+	yarn unlink @plataforma13/chemical-x-sdkjs
+	deleteResources
+	yarn link @plataforma13/chemical-x-sdkjs
+	installResources
+	git checkout yarn.lock
+}
+
+# Builda o Alkhema-TAM
+function buildAlkhemaTam() {
+	buildChemicalX
+	buildAlkhemaSdk
+
+	printf "Building ${GREEN}${ALKHEMA_TAM_PATH}${WHITE}${END}"
+	horizontalLine
+
+	cd "$PROJECTS_FOLDER$ALKHEMA_TAM_PATH"
+	checkResult 1
+	changeBranch
+	yarn unlink @plataforma13/chemical-x-sdkjs
+	yarn unlink @plataforma13/alkhema-sdk
+	deleteResources
+	yarn link @plataforma13/chemical-x-sdkjs
+	yarn link @plataforma13/alkhema-sdk
+	installResources
+	git checkout yarn.lock
+}
+
+# Builda o Alkhema-Gol
+function buildAlkhemaGol() {
+	buildChemicalX
+	buildAlkhemaSdk
+
+	printf "Building ${GREEN}${ALKHEMA_GOL_PATH}${WHITE}${END}"
+	horizontalLine
+
+	cd "$PROJECTS_FOLDER$ALKHEMA_GOL_PATH"
+	checkResult 1
+	changeBranch
+	yarn unlink @plataforma13/chemical-x-sdkjs
+	yarn unlink @plataforma13/alkhema-sdk
+	deleteResources
+	yarn link @plataforma13/chemical-x-sdkjs
+	yarn link @plataforma13/alkhema-sdk
+	installResources
+	git checkout yarn.lock
+}
+
+# Builda o Absolem-TAM
+function buildAbsolemTam() {
+	buildAlkhemaTam
+
+	printf "Building ${GREEN}${ABSOLEM_TAM_PATH}${WHITE}${END}"
+	horizontalLine
+
+	cd "$PROJECTS_FOLDER$ABSOLEM_TAM_PATH"
+	checkResult 1
+	changeBranch
+	yarn unlink @plataforma13/chemical-x-sdkjs
+	yarn unlink @plataforma13/alkhema-sdk
+	yarn unlink @plataforma13/alkhema-tam
+	deleteResources
+	yarn link @plataforma13/chemical-x-sdkjs
+	yarn link @plataforma13/alkhema-sdk
+	yarn link @plataforma13/alkhema-tam
+	installResources
+	git checkout yarn.lock
+}
+
+# Builda o Jocasta-TAM
+function buildJocastaTam() {
+	buildAlkhemaTam
+
+	printf "Building ${GREEN}${JOCASTA_TAM_PATH}${WHITE}${END}"
+	horizontalLine
+
+	cd "$PROJECTS_FOLDER$JOCASTA_TAM_PATH"
+	checkResult 1
+	changeBranch
+	yarn unlink @plataforma13/chemical-x-sdkjs
+	yarn unlink @plataforma13/alkhema-sdk
+	yarn unlink @plataforma13/alkhema-tam
+	deleteResources
+	yarn link @plataforma13/chemical-x-sdkjs
+	yarn link @plataforma13/alkhema-sdk
+	yarn link @plataforma13/alkhema-tam
+	installResources
+	git checkout yarn.lock
+}
+
+# Switch case do nome do projeto
+# ======================================================================================================================
+case "$ProjectName" in
+	"$ALKHEMA_TAM_PATH" ) buildAlkhemaTam ;;
+	"$ALKHEMA_GOL_PATH" ) buildAlkhemaGol ;;
+	"$ABSOLEM_TAM_PATH" ) buildAbsolemTam ;;
+	"$JOCASTA_TAM_PATH" ) buildJocastaTam ;;
+esac
+
+# Finalização
+# ======================================================================================================================
+horizontalLine
+DURATION=$SECONDS
+printf "${END}${WHITE}Duration: $(($DURATION / 60)) minutes and $(($DURATION % 60)) seconds${END}"
