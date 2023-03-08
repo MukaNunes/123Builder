@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # ======================================================================================================================
-# Constants Declaration
+# Constants and variables declaration
 # ======================================================================================================================
 
 # Specify the projects main path
@@ -15,6 +15,14 @@ ALKHEMA_GOL="Alkhema-GOL"
 ABSOLEM_TAM="Absolem-TAM"
 JOCASTA_TAM="jocasta-tam"
 
+# Specify de packages dependencies (must be declared in build order and declare the self package)
+declare -A DEPENDENCIES=(
+    [$ALKHEMA_TAM]="$CHEMICAL_X $ALKHEMA_SDK"
+    [$ALKHEMA_GOL]="$CHEMICAL_X $ALKHEMA_SDK $ALKHEMA_GOL"
+    [$ABSOLEM_TAM]="$CHEMICAL_X $ALKHEMA_SDK $ALKHEMA_TAM $ABSOLEM_TAM"
+    [$JOCASTA_TAM]="$CHEMICAL_X $ALKHEMA_SDK $ALKHEMA_TAM $JOCASTA_TAM"
+)
+
 # Specify the options available in the choices menu
 MENU_OPTIONS=(
     $ALKHEMA_TAM "" off
@@ -23,19 +31,11 @@ MENU_OPTIONS=(
     $JOCASTA_TAM "" off
 )
 
-# Specify de packages dependencies (must be declared in build order)
-declare -A DEPENDENCIES=(
-    [$ALKHEMA_TAM]="$CHEMICAL_X $ALKHEMA_SDK"
-    [$ALKHEMA_GOL]="$CHEMICAL_X $ALKHEMA_SDK"
-    [$ABSOLEM_TAM]="$CHEMICAL_X $ALKHEMA_SDK $ALKHEMA_TAM"
-    [$JOCASTA_TAM]="$CHEMICAL_X $ALKHEMA_SDK $ALKHEMA_TAM"
-)
-
 # Stores de packages to build
-declare -a BUILD_FLOW=()
+BUILD_FLOW=""
 
 # ======================================================================================================================
-# Functions Declaration
+# Functions declaration
 # ======================================================================================================================
 
 # Generates the build hash
@@ -51,9 +51,10 @@ cmd=(dialog --separate-output --checklist "Build-123 - Select projects to build:
 choices=$("${cmd[@]}" "${MENU_OPTIONS[@]}" 2>&1 >/dev/tty)
 clear
 
-# Insert all dependencies on the build_flow array
+# Insert all dependencies on the BUILD_FLOW string
+# Removes duplicate items
 for choice in $choices; do
-    BUILD_FLOW+=("${DEPENDENCIES[$choice]}")
+    BUILD_FLOW+="${DEPENDENCIES[$choice]} "
 done
 
-echo "${BUILD_FLOW[@]}"
+echo $BUILD_FLOW | awk -v RS="[ \n]+" '!n[$0]++'
