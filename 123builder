@@ -1,0 +1,388 @@
+#!/bin/bash
+
+# ======================================================================================================================
+# Constants and variables declaration
+# ======================================================================================================================
+
+# Specify the projects main path
+PROJECTS_FOLDER="${HOME}/Projetos/"
+
+# Specify de packages names (also the folder names)
+CHEMICAL_X="Chemical-X-SDKJS"
+ALKHEMA_SDK="Alkhema-SDK"
+ALKHEMA_TAM="Alkhema-TAM"
+ALKHEMA_GOL="Alkhema-GOL"
+ABSOLEM_TAM="Absolem-TAM"
+JOCASTA_TAM="jocasta-tam"
+
+# Specify de packages dependencies (must be declared in build order and declare the self package)
+declare -A DEPENDENCIES=(
+    [$ALKHEMA_TAM]="$CHEMICAL_X $ALKHEMA_SDK $ALKHEMA_TAM"
+    [$ALKHEMA_GOL]="$CHEMICAL_X $ALKHEMA_SDK $ALKHEMA_GOL"
+    [$ABSOLEM_TAM]="$CHEMICAL_X $ALKHEMA_SDK $ALKHEMA_TAM $ABSOLEM_TAM"
+    [$JOCASTA_TAM]="$CHEMICAL_X $ALKHEMA_SDK $ALKHEMA_TAM $JOCASTA_TAM"
+)
+
+# Specify the options available in the choices menu
+MENU_OPTIONS=(
+    $ALKHEMA_TAM
+    $ALKHEMA_GOL
+    $ABSOLEM_TAM
+    $JOCASTA_TAM
+)
+
+# Stores de packages to build
+BUILD_FLOW=""
+
+# Color mapping
+DEFAULT='\033[0m'
+END='\n\033[0m'
+WHITE='\033[1;37m'
+RED='\033[1;31m'
+GREEN='\033[1;36m'
+BLUE='\033[1;34m'
+YELLOW='\033[1;33m'
+CYAN='\033[1;96m'
+SECONDS=0
+
+# ======================================================================================================================
+# Functions declaration
+# ======================================================================================================================
+
+# Draw an horizontal line
+function horizontalLine() {
+    printf ${GREEN}
+    printf '%.s─' $(seq 1 $(tput cols))
+    printf ${END}
+}
+
+# Show the header title
+function showHeader() {
+    printf "${END}${RED}1${YELLOW}2${GREEN}3 ${WHITE}Builder ✈ "
+
+    if [ "$1" ]; then
+        printf ": ${YELLOW}$1"
+    fi
+
+    printf "${END}"
+
+    horizontalLine
+}
+
+# Execute a shell command
+function execute() {
+    local cmd="$1 2>1 | sed 's/^/\t/'"
+    eval $cmd
+}
+
+# Shows an message log on screen
+function log() {
+    echo -e "${YELLOW}- $1${DEFAULT}"
+}
+
+# Generates the build hash
+function getBuildHash() {
+    hash=$(tar -cf - dist yarn.lock | md5sum | awk '{print $1}')
+    return $hash
+}
+
+# Check the output of the last bash command
+function checkResult() {
+    if [ $? -ne 0 ]; then
+        printf "${RED}✖ FAIL${END}\n"
+
+        # Forces exit if param exists
+        if [ $1 ]; then
+            exit
+        fi
+    fi
+}
+
+# ======================================================================================================================
+# Project Builders
+# ======================================================================================================================
+
+function generateBuildHash() {
+    echo "tst"
+}
+
+function checkBuildHash() {
+    echo "tst"
+}
+
+function changeDirectory() {
+    log "Changing to directory ${PROJECTS_FOLDER}$1"
+    cd ${PROJECTS_FOLDER}$1
+    checkResult 1
+}
+
+# Returns the current branch
+function getGitBranch() {
+    git branch 2>/dev/null | sed -e '/^[^*]/d' -e 's/* \(.*\)/ \1/' -e 's/^[[:space:]]*//'
+}
+
+# Switches to the branch requested by parameter or to main on failure
+function changeBranch() {
+    log "Fetching new branches"
+    execute "git fetch --all"
+    checkResult
+
+    local currentBranch=$BranchName
+
+    if [ $(getGitBranch) == "${BranchName}" ]; then
+        log "Already on branch ${CYAN}${BranchName}"
+    else
+        log "Stashing before checkout to ${BranchName}"
+        execute "git stash"
+        checkResult
+
+        log "Checking-out to ${GREEN}${BranchName}"
+        execute "git checkout $BranchName"
+        checkResult
+
+        # Checkout in main on failure
+        if [ ! $(getGitBranch) == "${BranchName}" ]; then
+            currentBranch="main"
+            log "Checking-out to ${GREEN} main"
+            execute "git checkout main"
+            checkResult
+
+            # Check if it is in fact in main. Terminate the script if not
+            if [ ! $(getGitBranch) == "main" ]; then
+                log "Fail checkout to ${RED}main${WHITE}. Terminating$"
+                exit 1
+            fi
+        fi
+    fi
+
+    log "Pulling from ${currentBranch}"
+    execute "git pull"
+    checkResult
+
+    log "Trying to pull from upstrem/${currentBranch}"
+    execute "git pull upstream $currentBranch"
+    checkResult 1
+
+    log "Checking-out yarn.lock"
+    execute "git checkout yarn.lock"
+    checkResult
+
+}
+
+# Deletes the node_modules and dist folder
+function deleteResources() {
+    log "Deleting old build resources"
+    execute "yarn unlink"
+    execute "rm -rf node_modules"
+    execute "rm -rf dist"
+    execute "rm -rf yarn.lock"
+}
+
+# Run yarn commands
+function installResources() {
+    log "Installing new resources"
+    execute "yarn install --force"
+    execute "yarn upgrade"
+    execute "yarn build"
+    checkResult 1
+    execute "yarn link"
+}
+
+# Chemical-x build routine
+function buildChemicalX() {
+    if checkBuildHash; then
+        return
+    fi
+    showHeader "Building Chemical-X-SDKJS"
+    changeDirectory $CHEMICAL_X
+    changeBranch
+    deleteResources
+    installResources
+    execute "git checkout yarn.lock"
+}
+
+# Alkhema-SDK build routine
+function buildAlkhemaSDK() {
+    if checkBuildHash; then
+        return
+    fi
+    showHeader "Building Alkhema-SDK"
+    changeDirectory $ALKHEMA_SDK
+    changeBranch
+    execute "yarn unlink @plataforma13/chemical-x-sdkjs"
+    deleteResources
+    execute "yarn link @plataforma13/chemical-x-sdkjs"
+    installResources
+    execute "git checkout yarn.lock"
+}
+
+# ======================================================================================================================
+# Menu Functions
+# ======================================================================================================================
+
+# Show the script help message
+function helpFunction() {
+    showHeader "Builder for Alkhema-SDK dependent projects"
+    echo -e "${END}${WHITE}Keep your upstream pointing to the Platform 13 repositories on your remotes before using this script."
+    echo -e "${WHITE}If in doubt, read the development environment preparation documentation on our confluence page."
+    echo -e "${END}${YELLOW}Usage:${WHITE} $0 ${YELLOW}-b${WHITE} ${CYAN}\"branch-name\"${WHITE} ${YELLOW}-h${END}"
+    echo -e " ${YELLOW}-b${WHITE} Branch: Git branch to build. (Will use the main branch if the informed branch does'nt exists)"
+    echo -e " ${YELLOW}-h${WHITE} Help: Show this help screen${END}"
+    exit 1
+}
+
+# Show the multiselect
+function multiselect {
+    ESC=$(printf "\033")
+    cursor_blink_on() { printf "$ESC[?25h"; }
+    cursor_blink_off() { printf "$ESC[?25l"; }
+    cursor_to() { printf "$ESC[$1;${2:-1}H"; }
+    print_inactive() { printf "$2   $1 "; }
+    print_active() { printf "$2  $ESC[7m $1 $ESC[27m"; }
+    get_cursor_row() {
+        IFS=';' read -sdR -p $'\E[6n' ROW COL
+        echo ${ROW#*[}
+    }
+
+    local return_value=$1
+    local -n options=$2
+
+    local selected=()
+    for ((i = 0; i < ${#options[@]}; i++)); do
+        selected+=("false")
+        printf "\n"
+    done
+
+    # determine current screen position for overwriting the options
+    local lastrow=$(get_cursor_row)
+    local startrow=$(($lastrow - ${#options[@]}))
+
+    # ensure cursor and input echoing back on upon a ctrl+c during read -s
+    trap "cursor_blink_on; stty echo; printf '\n'; exit" 2
+    cursor_blink_off
+
+    key_input() {
+        local key
+        IFS= read -rsn1 key 2>/dev/null >&2
+        if [[ $key = "" ]]; then echo enter; fi
+        if [[ $key = $'\x20' ]]; then echo space; fi
+        if [[ $key = "k" ]]; then echo up; fi
+        if [[ $key = "j" ]]; then echo down; fi
+        if [[ $key = $'\x1b' ]]; then
+            read -rsn2 key
+            if [[ $key = [A || $key = k ]]; then echo up; fi
+            if [[ $key = [B || $key = j ]]; then echo down; fi
+        fi
+    }
+
+    toggle_option() {
+        local option=$1
+        if [[ ${selected[option]} == true ]]; then
+            selected[option]=false
+        else
+            selected[option]=true
+        fi
+    }
+
+    print_options() {
+        # print options by overwriting the last lines
+        local idx=0
+        for option in "${options[@]}"; do
+            local prefix="[ ]"
+            if [[ ${selected[idx]} == true ]]; then
+                prefix="[\e[38;5;46m✔\e[0m]"
+            fi
+
+            cursor_to $(($startrow + $idx))
+            if [ $idx -eq $1 ]; then
+                print_active "$option" "$prefix"
+            else
+                print_inactive "$option" "$prefix"
+            fi
+            ((idx++))
+        done
+    }
+
+    local active=0
+    while true; do
+        print_options $active
+
+        # user key control
+        case $(key_input) in
+        space) toggle_option $active ;;
+        enter)
+            print_options -1
+            break
+            ;;
+        up)
+            ((active--))
+            if [ $active -lt 0 ]; then active=$((${#options[@]} - 1)); fi
+            ;;
+        down)
+            ((active++))
+            if [ $active -ge ${#options[@]} ]; then active=0; fi
+            ;;
+        esac
+    done
+
+    # cursor position back to normal
+    cursor_to $lastrow
+    printf "\n"
+    cursor_blink_on
+
+    eval $return_value='("${selected[@]}")'
+}
+
+# ======================================================================================================================
+# Parameter parser
+# ======================================================================================================================
+
+# Get the script params
+while getopts "b:h" opt; do
+    case "$opt" in
+    b) BranchName="$OPTARG" ;;
+    h) helpFunction ;;
+    esac
+done
+
+# Show the help message if some required arg is missing
+if [ -z "$BranchName" ]; then
+    helpFunction
+fi
+
+# ======================================================================================================================
+# Choices dialog
+# ======================================================================================================================
+
+clear
+showHeader "Select the projects to Build"
+printf "${WHITE}Use the arrow keys to move and spacebar to select${END}"
+multiselect result MENU_OPTIONS
+
+# Insert all dependencies on the BUILD_FLOW string
+idx=0
+for option in "${MENU_OPTIONS[@]}"; do
+    if [ ${result[idx]} = true ]; then
+        BUILD_FLOW+="${DEPENDENCIES[$option]} "
+    fi
+    ((idx++))
+done
+
+# Cast the dependencies string as array and removes duplicates
+BUILD_FLOW=($(echo $BUILD_FLOW | awk -v RS="[ \n]+" '!n[$0]++'))
+
+# ======================================================================================================================
+# Build Flow
+# ======================================================================================================================
+
+# Call the build functions
+for project in "${BUILD_FLOW[@]}"; do
+    case "$project" in
+    "$CHEMICAL_X") buildChemicalX ;;
+    "$ALKHEMA_SDK") buildAlkhemaSDK ;;
+    # "$ALKHEMA_TAM") buildAlkhemaTam ;;
+    # "$ALKHEMA_GOL") buildAlkhemaGol ;;
+    # "$ABSOLEM_TAM") buildAbsolemTam ;;
+    # "$JOCASTA_TAM") buildJocastaTam ;;
+    esac
+done
