@@ -1,13 +1,14 @@
 #!/bin/bash
 
+# Specify the projects main path. Edit this line before run the script
+PROJECTS_FOLDER="${HOME}/Projetos/"
+
+
 # ======================================================================================================================
 # Constants and variables declaration
 # ======================================================================================================================
 
-# Specify the projects main path
-PROJECTS_FOLDER="${HOME}/Projetos/"
-
-# Specify de packages names (also the folder names)
+# Specify de packages names (also the folder path)
 CHEMICAL_X="Chemical-X-SDKJS"
 ALKHEMA_SDK="Alkhema-SDK"
 ALKHEMA_TAM="Alkhema-TAM"
@@ -15,7 +16,7 @@ ALKHEMA_GOL="Alkhema-GOL"
 ABSOLEM_TAM="Absolem-TAM"
 JOCASTA_TAM="jocasta-tam"
 
-# Specify de packages dependencies (must be declared in build order and declare the self package)
+# Specify de packages dependencies (must be declared in build order and include the self package)
 declare -A DEPENDENCIES=(
     [$ALKHEMA_TAM]="$CHEMICAL_X $ALKHEMA_SDK $ALKHEMA_TAM"
     [$ALKHEMA_GOL]="$CHEMICAL_X $ALKHEMA_SDK $ALKHEMA_GOL"
@@ -225,6 +226,7 @@ function helpFunction() {
     showHeader "Builder for Alkhema-SDK dependent projects"
     echo -e "${END}${WHITE}Keep your upstream pointing to the Platform 13 repositories on your remotes before using this script."
     echo -e "${WHITE}If in doubt, read the development environment preparation documentation on our confluence page."
+    echo -e "${WHITE}Before running, make sure that the constant ${YELLOW}PROJECTS_FOLDER${WHITE} value at the beginning of the script is pointing to your project folder."
     echo -e "${END}${YELLOW}Usage:${WHITE} $0 ${YELLOW}-b${WHITE} ${CYAN}\"branch-name\"${WHITE} ${YELLOW}-h${END}"
     echo -e " ${YELLOW}-b${WHITE} Branch: Git branch to build. (Will use the main branch if the informed branch does'nt exists)"
     echo -e " ${YELLOW}-h${WHITE} Help: Show this help screen${END}"
