@@ -70,7 +70,7 @@ function showHeader() {
     horizontalLine
 }
 
-# Execute a shell command
+# Execute a shell command. Tabulates te output lines
 function execute() {
     local cmd="$1 2>&1 | sed 's/^/\t/'"
     eval $cmd
