@@ -81,6 +81,13 @@ function log() {
     echo -e "${YELLOW}- $1${DEFAULT}"
 }
 
+# Shows the total time of execution
+function showTotalTime() {
+    horizontalLine
+    DURATION=$SECONDS
+    log "Duration: $(($DURATION / 60)) minutes and $(($DURATION % 60)) seconds"
+}
+
 # Check the output of the last bash command
 function checkResult() {
     if [ $? -ne 0 ]; then
@@ -88,6 +95,7 @@ function checkResult() {
 
         # Forces exit if param exists
         if [ $1 ]; then
+            showTotalTime
             exit 1
         fi
     fi
@@ -301,7 +309,6 @@ function buildAbsolemTam() {
     saveBuildHash $ABSOLEM_TAM
 }
 
-
 # Jocasta-TAM build routine
 function buildJocastaTam() {
     if checkBuildHash $JOCASTA_TAM; then
@@ -497,3 +504,5 @@ for project in "${BUILD_FLOW[@]}"; do
     "$JOCASTA_TAM") buildJocastaTam ;;
     esac
 done
+
+showTotalTime
