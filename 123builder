@@ -1,8 +1,8 @@
 #!/bin/bash
 
 # Specify the projects main path. Edit this line before run the script
+# Requires the slash at the end of the path
 PROJECTS_FOLDER="${HOME}/Projetos/"
-
 
 # ======================================================================================================================
 # Constants and variables declaration
@@ -72,19 +72,13 @@ function showHeader() {
 
 # Execute a shell command
 function execute() {
-    local cmd="$1 2>1 | sed 's/^/\t/'"
+    local cmd="$1 2>&1 | sed 's/^/\t/'"
     eval $cmd
 }
 
 # Shows an message log on screen
 function log() {
     echo -e "${YELLOW}- $1${DEFAULT}"
-}
-
-# Generates the build hash
-function getBuildHash() {
-    hash=$(tar -cf - dist yarn.lock | md5sum | awk '{print $1}')
-    return $hash
 }
 
 # Check the output of the last bash command
@@ -94,7 +88,7 @@ function checkResult() {
 
         # Forces exit if param exists
         if [ $1 ]; then
-            exit
+            exit 1
         fi
     fi
 }
@@ -103,14 +97,36 @@ function checkResult() {
 # Project Builders
 # ======================================================================================================================
 
-function generateBuildHash() {
-    echo "tst"
+# Generates the build hash
+function getBuildHash() {
+    local path="$PROJECTS_FOLDER$1"
+    echo $(tar -cf - $path/dist $path/yarn.lock $path/.git/HEAD 2>/dev/null | md5sum | awk '{print $1}')
 }
 
+# Compares the current build hash with the one previously saved
 function checkBuildHash() {
-    echo "tst"
+    if [ $ForceBuild ]; then
+        return 1
+    fi
+
+    local path="$PROJECTS_FOLDER$1"
+
+    if [ "$(cat $path/buildhash 2>/dev/null)" = $(getBuildHash $1) ]; then
+        log "$1 Build Hash match: No need to rebuild. Moving on..."
+        return 0
+    else
+        return 1
+    fi
 }
 
+# Saves the current build hash
+function saveBuildHash() {
+    log "Saving Build Hash"
+    local path="$PROJECTS_FOLDER$1"
+    $(getBuildHash $1 >$path/buildhash)
+}
+
+# Changes the current directory
 function changeDirectory() {
     log "Changing to directory ${PROJECTS_FOLDER}$1"
     cd ${PROJECTS_FOLDER}$1
@@ -144,7 +160,7 @@ function changeBranch() {
         # Checkout in main on failure
         if [ ! $(getGitBranch) == "${BranchName}" ]; then
             currentBranch="main"
-            log "Checking-out to ${GREEN} main"
+            log "Checking-out to ${GREEN}main"
             execute "git checkout main"
             checkResult
 
@@ -191,23 +207,27 @@ function installResources() {
 
 # Chemical-x build routine
 function buildChemicalX() {
-    if checkBuildHash; then
+    if checkBuildHash $CHEMICAL_X; then
         return
     fi
-    showHeader "Building Chemical-X-SDKJS"
+
+    showHeader "Building $CHEMICAL_X"
     changeDirectory $CHEMICAL_X
     changeBranch
     deleteResources
     installResources
     execute "git checkout yarn.lock"
+
+    saveBuildHash $CHEMICAL_X
 }
 
 # Alkhema-SDK build routine
 function buildAlkhemaSDK() {
-    if checkBuildHash; then
+    if checkBuildHash $ALKHEMA_SDK; then
         return
     fi
-    showHeader "Building Alkhema-SDK"
+
+    showHeader "Building $ALKHEMA_SDK"
     changeDirectory $ALKHEMA_SDK
     changeBranch
     execute "yarn unlink @plataforma13/chemical-x-sdkjs"
@@ -215,6 +235,93 @@ function buildAlkhemaSDK() {
     execute "yarn link @plataforma13/chemical-x-sdkjs"
     installResources
     execute "git checkout yarn.lock"
+
+    saveBuildHash $ALKHEMA_SDK
+}
+
+# Alkhema-TAM build routine
+function buildAlkhemaTam() {
+    if checkBuildHash $ALKHEMA_TAM; then
+        return
+    fi
+
+    showHeader "Building $ALKHEMA_TAM"
+    changeDirectory $ALKHEMA_TAM
+    changeBranch
+    execute "yarn unlink @plataforma13/chemical-x-sdkjs"
+    execute "yarn unlink @plataforma13/alkhema-sdk"
+    deleteResources
+    execute "yarn link @plataforma13/chemical-x-sdkjs"
+    execute "yarn link @plataforma13/alkhema-sdk"
+    installResources
+    execute "git checkout yarn.lock"
+
+    saveBuildHash $ALKHEMA_TAM
+}
+
+# Alkhema-GOL build routine
+function buildAlkhemaGol() {
+    if checkBuildHash $ALKHEMA_GOL; then
+        return
+    fi
+
+    showHeader "Building $ALKHEMA_GOL"
+    changeDirectory $ALKHEMA_GOL
+    changeBranch
+    execute "yarn unlink @plataforma13/chemical-x-sdkjs"
+    execute "yarn unlink @plataforma13/alkhema-sdk"
+    deleteResources
+    execute "yarn link @plataforma13/chemical-x-sdkjs"
+    execute "yarn link @plataforma13/alkhema-sdk"
+    installResources
+    execute "git checkout yarn.lock"
+
+    saveBuildHash $ALKHEMA_GOL
+}
+
+# Absolem-TAM build routine
+function buildAbsolemTam() {
+    if checkBuildHash $ABSOLEM_TAM; then
+        return
+    fi
+
+    showHeader "Building $ABSOLEM_TAM"
+    changeDirectory $ABSOLEM_TAM
+    changeBranch
+    execute "yarn unlink @plataforma13/chemical-x-sdkjs"
+    execute "yarn unlink @plataforma13/alkhema-sdk"
+    execute "yarn unlink @plataforma13/alkhema-tam"
+    deleteResources
+    execute "yarn link @plataforma13/chemical-x-sdkjs"
+    execute "yarn link @plataforma13/alkhema-sdk"
+    execute "yarn link @plataforma13/alkhema-tam"
+    installResources
+    execute "git checkout yarn.lock"
+
+    saveBuildHash $ABSOLEM_TAM
+}
+
+
+# Jocasta-TAM build routine
+function buildJocastaTam() {
+    if checkBuildHash $JOCASTA_TAM; then
+        return
+    fi
+
+    showHeader "Building $JOCASTA_TAM"
+    changeDirectory $JOCASTA_TAM
+    changeBranch
+    execute "yarn unlink @plataforma13/chemical-x-sdkjs"
+    execute "yarn unlink @plataforma13/alkhema-sdk"
+    execute "yarn unlink @plataforma13/alkhema-tam"
+    deleteResources
+    execute "yarn link @plataforma13/chemical-x-sdkjs"
+    execute "yarn link @plataforma13/alkhema-sdk"
+    execute "yarn link @plataforma13/alkhema-tam"
+    installResources
+    execute "git checkout yarn.lock"
+
+    saveBuildHash $JOCASTA_TAM
 }
 
 # ======================================================================================================================
@@ -227,13 +334,14 @@ function helpFunction() {
     echo -e "${END}${WHITE}Keep your upstream pointing to the Platform 13 repositories on your remotes before using this script."
     echo -e "${WHITE}If in doubt, read the development environment preparation documentation on our confluence page."
     echo -e "${WHITE}Before running, make sure that the constant ${YELLOW}PROJECTS_FOLDER${WHITE} value at the beginning of the script is pointing to your project folder."
-    echo -e "${END}${YELLOW}Usage:${WHITE} $0 ${YELLOW}-b${WHITE} ${CYAN}\"branch-name\"${WHITE} ${YELLOW}-h${END}"
+    echo -e "${END}${YELLOW}Usage:${WHITE} $0 ${YELLOW}-b${WHITE} ${CYAN}\"branch-name\"${WHITE} ${YELLOW}-f -h${END}"
     echo -e " ${YELLOW}-b${WHITE} Branch: Git branch to build. (Will use the main branch if the informed branch does'nt exists)"
+    echo -e " ${YELLOW}-f${WHITE} Force: Ignores the hash check and forces the build${END}"
     echo -e " ${YELLOW}-h${WHITE} Help: Show this help screen${END}"
     exit 1
 }
 
-# Show the multiselect
+# Show the multiselect menu
 function multiselect {
     ESC=$(printf "\033")
     cursor_blink_on() { printf "$ESC[?25h"; }
@@ -340,9 +448,10 @@ function multiselect {
 # ======================================================================================================================
 
 # Get the script params
-while getopts "b:h" opt; do
+while getopts "b:fh" opt; do
     case "$opt" in
     b) BranchName="$OPTARG" ;;
+    f) ForceBuild=true ;;
     h) helpFunction ;;
     esac
 done
@@ -382,9 +491,9 @@ for project in "${BUILD_FLOW[@]}"; do
     case "$project" in
     "$CHEMICAL_X") buildChemicalX ;;
     "$ALKHEMA_SDK") buildAlkhemaSDK ;;
-    # "$ALKHEMA_TAM") buildAlkhemaTam ;;
-    # "$ALKHEMA_GOL") buildAlkhemaGol ;;
-    # "$ABSOLEM_TAM") buildAbsolemTam ;;
-    # "$JOCASTA_TAM") buildJocastaTam ;;
+    "$ALKHEMA_TAM") buildAlkhemaTam ;;
+    "$ALKHEMA_GOL") buildAlkhemaGol ;;
+    "$ABSOLEM_TAM") buildAbsolemTam ;;
+    "$JOCASTA_TAM") buildJocastaTam ;;
     esac
 done
