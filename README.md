@@ -14,7 +14,7 @@ echo "$PWD"
 
 ### Usage:
 ``` bash
-./123builder **-b** "branch-name" **-f** **-h**
+./123builder -b "branch-name" -f -h
 ```
 
 - **-b** *Branch*: Git branch to build. (Will use the main branch if the informed branch does'nt exists).
