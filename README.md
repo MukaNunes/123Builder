@@ -4,7 +4,7 @@
 ### Main guidelines:
 - Keep your upstream pointing to the Platform 13 repositories on your remotes before using this script.
 - If in doubt, read the development environment preparation documentation on our confluence page: [Prepare Environment](https://grupo123.atlassian.net/wiki/spaces/INI/pages/45382467585/Prepare+Environment).
-- Before running, make sure that the constant PROJECTS_FOLDER value at the beginning of the script is pointing to your project folder.
+- Before running, make sure that the constant **PROJECTS_FOLDER** value at the beginning of the script is pointing to your project folder.
 - If you don't know how to get the path of your project folder, copy the return of the following commands:
 
 ``` bash
