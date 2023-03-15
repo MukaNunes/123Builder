@@ -157,6 +157,9 @@ function changeBranch() {
     if [ $(getGitBranch) == "${BranchName}" ]; then
         log "Already on branch ${CYAN}${BranchName}"
     else
+        log "Removing yarn.lock"
+        execute "rm  yarn.lock"
+
         log "Stashing before checkout to ${BranchName}"
         execute "git stash"
         checkResult
@@ -188,8 +191,6 @@ function changeBranch() {
     execute "git pull upstream $currentBranch"
     checkResult 1
 
-    log "Checking-out yarn.lock"
-    execute "git checkout yarn.lock"
     checkResult
 
 }
